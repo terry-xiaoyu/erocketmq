@@ -1,9 +1,19 @@
 -module(erocketmq_api).
 
--export([connect/4, query_route/3]).
+-export([connect/4, query_route/2]).
+
+-type name_server() :: {inet:hostname(), inet:port_number()}.
+-type client_ref() ::
+    #{
+        grpc_channel_id := term(),
+        name_server := name_server(),
+        x_mq_client_id => binary()
+    }.
 
 -define(service_client, apache_rocketmq_v_2_messaging_service_client).
 
+-spec connect(term(), uri_string:uri_string(), name_server(), map()) ->
+    {ok, client_ref()} | {error, term()}.
 connect(ChannelId, ProxyUrl, {Host, Port} = NameServer, ClientOpts) ->
     case gen_tcp:connect(Host, Port, [{active, false}]) of
         {ok, Socket} ->
@@ -18,13 +28,14 @@ do_connect(ChannelId, ProxyUrl, NameServer, ClientOpts) ->
             {ok, #{
                 grpc_channel_id => ChannelId,
                 name_server => NameServer,
-                clientid => gen_client_id(<<"erocketmq_">>)
+                x_mq_client_id => gen_client_id(<<"erocketmq_">>)
             }};
         {error, _} = Err -> Err
     end.
 
-query_route(ChannelId, ClientId, Topic) ->
-    NameServer = #{scheme => 'IPv4', addresses => [#{host => <<"localhost">>, port => 9876}]},
+query_route(#{grpc_channel_id := ChannelId, name_server := {Host, Port},
+              x_mq_client_id := ClientId}, Topic) ->
+    NameServer = #{scheme => 'IPv4', addresses => [#{host => Host, port => Port}]},
     ?service_client:query_route(
         #{topic => #{name => Topic}, endpoints => NameServer},
         #{<<"x-mq-client-id">> => ClientId},

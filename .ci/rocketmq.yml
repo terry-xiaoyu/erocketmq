@@ -1,0 +1,50 @@
+version: '3.8'
+services:
+  namesrv:
+    image: apache/rocketmq:${TAG}
+    container_name: rmqnamesrv
+    ports:
+      - 9876:9876
+    networks:
+      - rocketmq
+    command: sh mqnamesrv
+  broker:
+    image: apache/rocketmq:${TAG}
+    container_name: rmqbroker
+    ports:
+      - 10909:10909
+      - 10911:10911
+      - 10912:10912
+    environment:
+      - NAMESRV_ADDR=rmqnamesrv:9876
+    depends_on:
+      - namesrv
+    networks:
+      - rocketmq
+    restart: "on-failure"
+    command:
+      sh -c '(./mqbroker &) &&
+             sleep 30 &&
+             ./mqadmin updateTopic -n rmqnamesrv:9876 -p 6 -t rwtopic -c DefaultCluster -r 2 -w 2 &&
+             read -p "wait here"'
+    tty: true
+    stdin_open: true
+    #command: sh mqbroker
+  proxy:
+    image: apache/rocketmq:${TAG}
+    container_name: rmqproxy
+    networks:
+      - rocketmq
+    depends_on:
+      - broker
+      - namesrv
+    ports:
+      - 8080:8080
+      - 8081:8081
+    restart: on-failure
+    environment:
+      - NAMESRV_ADDR=rmqnamesrv:9876
+    command: sh mqproxy
+networks:
+  rocketmq:
+    driver: bridge

@@ -1,0 +1,61 @@
+name: Run RocketMQ Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        otp_version: [26, 27]
+        os: [ubuntu-latest]
+
+    services:
+      docker:
+        image: docker:24.0.5
+        options: --privileged
+        ports:
+          - 9876:9876
+          - 8081:8081
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Erlang
+        uses: erlef/setup-beam@v1
+        with:
+        otp-version: ${{ matrix.otp_version }}
+        rebar3-version: '3'
+      - run: rebar3 compile
+      - run: rebar3 dialyzer
+
+      - name: Set up Docker Compose
+        uses: docker/setup-buildx-action@v2
+
+      # Step 3: Run Docker Compose
+      - name: Start RocketMQ with Docker Compose
+        run: |
+          docker-compose -f .ci/rocketmq.yml up -d
+        env:
+          TAG: 5.3.1
+
+      # Step 4: Run tests
+      - name: Run tests
+        run: |
+          rebar3 eunit
+          rebar3 ct -v -c --readable
+      - run: rebar3 eunit
+
+      - name: Stop RocketMQ
+        if: always()
+        run: docker-compose down
+      - uses: actions/upload-artifact@v3
+        if: failure()
+        with:
+          name: ct-logs-${{matrix.os}}-${{matrix.otp_version}}
+          path: _build/test/logs
