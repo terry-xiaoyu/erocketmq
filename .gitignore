@@ -16,7 +16,9 @@ _build
 .idea
 *.iml
 rebar3.crashdump
+rebar3
 apache_rocketmq_*
 *_pb.erl
 rebar.lock
+erocketmq_dialyzer_*
 *~

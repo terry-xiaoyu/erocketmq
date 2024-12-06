@@ -33,6 +33,7 @@ do_connect(ChannelId, ProxyUrl, NameServer, ClientOpts) ->
         {error, _} = Err -> Err
     end.
 
+-dialyzer({no_unknown, [query_route/2]}).
 query_route(#{grpc_channel_id := ChannelId, name_server := {Host, Port},
               x_mq_client_id := ClientId}, Topic) ->
     NameServer = #{scheme => 'IPv4', addresses => [#{host => Host, port => Port}]},
