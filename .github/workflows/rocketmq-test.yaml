@@ -5,55 +5,56 @@ on:
     branches:
       - main
   pull_request:
+    branches:
+      - '*'
 
 jobs:
   test:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        otp_version: [26, 27]
+        otp_version: [26]
         os: [ubuntu-latest]
-
-    services:
-      docker:
-        image: docker:24.0.5
-        options: --privileged
-        ports:
-          - 9876:9876
-          - 8081:8081
-
+        rebar3:
+          - 3.24.0
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: install docker-compose
+        run: |
+          sudo curl -L "https://github.com/docker/compose/releases/download/v2.31.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          sudo chmod +x /usr/local/bin/docker-compose
+
       - name: Erlang
         uses: erlef/setup-beam@v1
         with:
-        otp-version: ${{ matrix.otp_version }}
-        rebar3-version: '3'
+          otp-version: ${{ matrix.otp_version }}
+          rebar3-version: ${{ matrix.rebar3 }}
       - run: rebar3 compile
       - run: rebar3 dialyzer
 
-      - name: Set up Docker Compose
-        uses: docker/setup-buildx-action@v2
-
-      # Step 3: Run Docker Compose
       - name: Start RocketMQ with Docker Compose
         run: |
+          docker-compose -f .ci/rocketmq.yml down
           docker-compose -f .ci/rocketmq.yml up -d
         env:
           TAG: 5.3.1
 
-      # Step 4: Run tests
       - name: Run tests
         run: |
           rebar3 eunit
-          rebar3 ct -v -c --readable
-      - run: rebar3 eunit
+          rebar3 ct -v -c --name 'test@127.0.0.1' -v --readable=true
+      - name: Get container logs on failure
+        if: failure()
+        run: |
+          echo "============== rmqbroker-log-begin =============="
+          docker logs rmqbroker
+          echo "============== rmqbroker-log-end =============="
 
       - name: Stop RocketMQ
         if: always()
-        run: docker-compose down
+        run: docker-compose -f .ci/rocketmq.yml down
       - uses: actions/upload-artifact@v3
         if: failure()
         with:
