@@ -19,6 +19,7 @@ groups() ->
     [
         {clients, [sequence],
             [ t_query_route
+            , t_send_message
             ]}
     ].
 
@@ -39,22 +40,22 @@ init_per_testcase(_, Config) ->
     {ok, ClientRef} = erocketmq_api:connect(<<"channel_id1">>, ?PROXY, ?NAME_SERVER, #{}),
     [{client_ref, ClientRef} | Config].
 
-end_per_testcase(_, _Config) ->
-    ClientRef = ?config(client_ref),
+end_per_testcase(_, Config) ->
+    ClientRef = ?config(client_ref, Config),
     ok = erocketmq_api:disconnect(ClientRef).
 
-t_query_route(_) ->
-    ClientRef = ?config(client_ref),
+t_query_route(Config) ->
+    ClientRef = ?config(client_ref, Config),
     query_route_with_created_topic(ClientRef, 15).
 
-t_send_message(_) ->
-    ClientRef = ?config(client_ref),
+t_send_message(Config) ->
+    ClientRef = ?config(client_ref, Config),
     Msg = <<"Hello RocketMQ!">>,
-    ?assertMatch({ok, #{status := #{code := 'OK'}}},
+    ?assertMatch({ok, #{status := #{code := 'OK'}}, _},
         erocketmq_api:send_message(ClientRef, #{
             topic => ?TOPIC, body => Msg
         })),
-    ?assertMatch({ok, #{status := #{code := 'OK'}}},
+    ?assertMatch({ok, #{status := #{code := 'OK'}}, _},
         erocketmq_api:send_message(ClientRef, #{
             topic => ?TOPIC, body => Msg,
             system_properties => #{keys => [<<"ff">>]}
