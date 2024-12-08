@@ -18,7 +18,7 @@ suite() -> [{timetrap, {minutes, 3}}].
 groups() ->
     [
         {clients, [sequence],
-            [ query_route
+            [ t_query_route
             ]}
     ].
 
@@ -33,12 +33,37 @@ init_per_suite(Config) ->
     Config.
 
 end_per_suite(_Config) ->
-    ok = application:stop(erocketmq),
+    ok = application:stop(erocketmq).
+
+init_per_testcase(_, Config) ->
+    {ok, ClientRef} = erocketmq_api:connect(<<"channel_id1">>, ?PROXY, ?NAME_SERVER, #{}),
+    [{client_ref, ClientRef} | Config].
+
+end_per_testcase(_, _Config) ->
+    ClientRef = ?config(client_ref),
+    ok = erocketmq_api:disconnect(ClientRef).
+
+t_query_route(_) ->
+    ClientRef = ?config(client_ref),
+    query_route_with_created_topic(ClientRef, 15).
+
+t_send_message(_) ->
+    ClientRef = ?config(client_ref),
+    Msg = <<"Hello RocketMQ!">>,
+    ?assertMatch({ok, #{status := #{code := 'OK'}}},
+        erocketmq_api:send_message(ClientRef, #{
+            topic => ?TOPIC, body => Msg
+        })),
+    ?assertMatch({ok, #{status := #{code := 'OK'}}},
+        erocketmq_api:send_message(ClientRef, #{
+            topic => ?TOPIC, body => Msg,
+            system_properties => #{keys => [<<"ff">>]}
+        })),
     ok.
 
-query_route(_) ->
-    {ok, ClientRef} = erocketmq_api:connect(<<"channel_id1">>, ?PROXY, ?NAME_SERVER, #{}),
-    query_route_with_created_topic(ClientRef, 15).
+%%==============================================================================
+%% Helpers
+%%==============================================================================
 
 query_route_with_created_topic(ClientRef, RetryLeft) ->
     {ok, #{status := Status, message_queues := MessageQueues}, _}
